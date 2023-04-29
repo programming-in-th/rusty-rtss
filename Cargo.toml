@@ -1,0 +1,29 @@
+[package]
+name = "rusty-rtss"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+async-trait = "0.1.68"
+axum = { version = "0.6.17", features = ["tokio"] }
+env_logger = "0.10.0"
+futures = "0.3.28"
+futures-util = "0.3.28"
+log = "0.4.17"
+serde = { version = "1.0.160", features = ["derive"] }
+serde_json = "1.0.96"
+sqlx = { version = "0.6.3", features = ["runtime-tokio-rustls", "postgres"] }
+tokio = { version = "1.28.0", features = ["rt-multi-thread", "tokio-macros", "macros"] }
+
+[[bin]]
+name = "main"
+path = "src/main.rs"
+required-features = ["postgres", "sse"]
+
+[lib]
+name = "rusty_rtss"
+path = "src/lib.rs"
+
+[features]
+postgres = []
+sse = []
