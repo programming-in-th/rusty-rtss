@@ -6,18 +6,25 @@ use sqlx::postgres::PgNotification;
 
 use super::event::Listener;
 
-/// postgres implementation of [`Listener`](super::event::Listener)
+pub trait Identifiable {
+    type Identifier;
 
-pub struct PgListener<P> {
-    listener: sqlx::postgres::PgListener,
-    _payload: PhantomData<P>,
+    fn from(input: PgNotification) -> (Self::Identifier, Self);
 }
 
-impl<P> Listener for PgListener<P>
+/// postgres implementation of [`Listener`](super::event::Listener)
+pub struct PgListener<I, P> {
+    listener: sqlx::postgres::PgListener,
+    _payload: PhantomData<P>,
+    _id: PhantomData<I>,
+}
+
+impl<I, P> Listener for PgListener<I, P>
 where
-    P: Send + Sync + From<PgNotification>,
+    P: Send + Sync + Identifiable<Identifier = I>,
+    I: Send + Sync,
 {
-    type Identifier = String;
+    type Identifier = I;
     type Payload = P;
     type S = BoxStream<'static, (Self::Identifier, Self::Payload)>;
 
@@ -26,8 +33,7 @@ where
             .into_stream()
             .filter_map(|result: Result<PgNotification, sqlx::Error>| async move {
                 if let Ok(x) = result {
-                    // TODO: yaya
-                    Some(("".to_string(), <P as From<PgNotification>>::from(x)))
+                    Some(<P as Identifiable>::from(x))
                 } else {
                     None
                 }
@@ -36,7 +42,7 @@ where
     }
 }
 
-impl<P> PgListener<P> {
+impl<I, P> PgListener<I, P> {
     /// Consume [`PgListenerConfig`](PgListenerConfig), then connect and listen to the specify channel
     pub async fn connect(config: PgListenerConfig<'_>) -> Result<Self, Box<dyn std::error::Error>> {
         let mut con = sqlx::postgres::PgListener::connect(config.url).await?;
@@ -46,6 +52,7 @@ impl<P> PgListener<P> {
         Ok(PgListener {
             listener: con,
             _payload: Default::default(),
+            _id: Default::default(),
         })
     }
 }

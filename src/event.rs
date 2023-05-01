@@ -12,11 +12,12 @@ pub trait Listener: Send + Sync {
 /// Make it easier to switch between client implementation (e.g. ws <-> sse)
 #[async_trait::async_trait]
 pub trait Publisher: Send + Sync {
-    type Payload;
+    type Payload: Into<Self::Target>;
     type Identifier;
-    type Writer: Sink<Self::Payload>;
+    type Target;
+    type Writer: Sink<Self::Target>;
 
-    fn add_subscriber(&mut self, id: &Self::Identifier, writer: Self::Writer);
+    fn add_subscriber(&mut self, id: Self::Identifier, writer: Self::Writer);
 
-    async fn publish(&self, id: &Self::Identifier, payload: &Self::Payload);
+    async fn publish(&self, id: &Self::Identifier, payload: Self::Payload);
 }

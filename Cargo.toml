@@ -5,7 +5,8 @@ edition = "2021"
 
 [dependencies]
 async-trait = "0.1.68"
-axum = { version = "0.6.17", features = ["tokio"] }
+axum = { version = "0.6.17", features = ["tokio", "json"] }
+dashmap = "5.4.0"
 env_logger = "0.10.0"
 futures = "0.3.28"
 futures-util = "0.3.28"
@@ -18,7 +19,6 @@ tokio = { version = "1.28.0", features = ["rt-multi-thread", "tokio-macros", "ma
 [[bin]]
 name = "main"
 path = "src/main.rs"
-required-features = ["postgres", "sse"]
 
 [lib]
 name = "rusty_rtss"
