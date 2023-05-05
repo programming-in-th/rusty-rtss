@@ -1,21 +1,16 @@
 use super::event::{Listener, Publisher};
 
-use futures::{channel::mpsc::UnboundedSender, SinkExt};
 use futures_util::StreamExt;
+use std::sync::Arc;
 use tokio::task::JoinHandle;
 
-enum Event<I, W, T> {
-    AddSubscriber(I, W),
-    Publish(I, T),
-}
-
-pub struct App<I, W, T> {
-    event_writer: UnboundedSender<Event<I, W, T>>,
+pub struct App<P> {
     _handle: JoinHandle<()>,
+    publisher: Arc<P>,
 }
 
-impl<I, W, T> App<I, W, T> {
-    pub fn new<L, P>(listener: L, mut publisher: P) -> Result<Self, Box<dyn std::error::Error>>
+impl<P> App<P> {
+    pub fn new<L, I, W, T>(listener: L, publisher: P) -> Result<Self, Box<dyn std::error::Error>>
     where
         L: Listener<Payload = T, Identifier = I> + 'static,
         P: Publisher<Payload = T, Identifier = I, Writer = W> + 'static,
@@ -23,56 +18,47 @@ impl<I, W, T> App<I, W, T> {
         W: Send + Sync + 'static,
         T: Send + Sync + 'static,
     {
-        let (event_writer, mut event_reader) = futures::channel::mpsc::unbounded();
+        let publisher = Arc::new(publisher);
 
-        let cloned_writer = event_writer.clone();
+        let cloned_publisher = Arc::clone(&publisher);
+        let handle = tokio::spawn(async move {
+            let cloned_publisher = cloned_publisher;
+            let stream = listener.into_stream();
 
-        let _forwarder = tokio::spawn(async move {
-            listener
-                .into_stream()
-                .map(|(id, payload)| Ok(Event::Publish(id, payload)))
-                .forward(cloned_writer)
+            stream
+                .for_each_concurrent(10, move |(id, payload)| {
+                    let cloned_publisher = Arc::clone(&cloned_publisher);
+
+                    async move {
+                        let cloned_publisher = cloned_publisher;
+
+                        cloned_publisher.publish(&id, payload).await;
+                    }
+                })
                 .await
         });
 
-        let _event_processor = tokio::spawn(async move {
-            log::info!("Spawning event hub");
-            while let Some(event) = event_reader.next().await {
-                match event {
-                    Event::AddSubscriber(id, writer) => publisher.add_subscriber(id, writer),
-                    Event::Publish(id, payload) => publisher.publish(&id, payload).await,
-                }
-            }
-        });
-
-        // app should die when either handle die
-        let handle = tokio::spawn(async move {
-            tokio::select! {
-                _ = _forwarder => {
-
-                }
-                _ = _event_processor => {
-
-                }
-            }
-        });
-
         Ok(App {
-            event_writer,
             _handle: handle,
+            publisher: publisher,
         })
     }
 
     /// Push add subscriber event to message queue.
-    pub async fn add_subscriber(&self, id: I, writer: W) -> Result<(), Box<dyn std::error::Error>> {
-        let res = self
-            .event_writer
-            .clone()
-            .send(Event::AddSubscriber(id, writer))
-            .await?;
+    pub async fn add_subscriber<I, W, T>(
+        &self,
+        id: I,
+        writer: W,
+    ) -> Result<(), Box<dyn std::error::Error>>
+    where
+        P: Publisher<Payload = T, Identifier = I, Writer = W> + 'static,
+        I: Send + Sync + 'static,
+        W: Send + Sync + 'static,
+    {
+        self.publisher.add_subscriber(id, writer);
 
         tokio::task::yield_now().await;
 
-        Ok(res)
+        Ok(())
     }
 }

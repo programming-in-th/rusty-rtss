@@ -9,7 +9,7 @@ use axum::{
     routing::get,
     Router, Server,
 };
-use futures::channel::mpsc::{unbounded, UnboundedSender};
+use futures::channel::mpsc::unbounded;
 
 use rusty_rtss::{
     postgres::{PgListener, PgListenerConfig},
@@ -55,7 +55,7 @@ type Identifier = i32;
 
 type Payload = payload::Payload;
 
-type SharedState = Arc<App<Identifier, UnboundedSender<Event>, Payload>>;
+type SharedState = Arc<App<SsePublisher<Identifier, Payload>>>;
 
 async fn handler(
     Path(submission_id): Path<i32>,
@@ -84,6 +84,8 @@ async fn healthz() -> impl IntoResponse {
 #[tokio::main]
 async fn main() {
     env_logger::init();
+
+    log::info!("Connection to database");
     let listener = PgListener::<Identifier, Payload>::connect(PgListenerConfig {
         channels: vec!["update"],
         // url: std::env::var("DB_CONNECTION_STRING")
@@ -94,8 +96,10 @@ async fn main() {
     .await
     .expect("unable to connect to database");
 
+    log::info!("Creating publisher");
     let publisher = SsePublisher::new();
 
+    log::info!("Creating app");
     let shared_state = Arc::new(App::new(listener, publisher).expect("unable to create app"));
 
     let app = Router::new()
@@ -103,6 +107,7 @@ async fn main() {
         .route("/", get(healthz))
         .with_state(shared_state);
 
+    log::info!("Serving on 0.0.0.0:3000");
     Server::bind(&"0.0.0.0:3000".parse().unwrap())
         .serve(app.into_make_service())
         .await

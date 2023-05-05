@@ -17,7 +17,7 @@ pub trait Publisher: Send + Sync {
     type Target;
     type Writer: Sink<Self::Target>;
 
-    fn add_subscriber(&mut self, id: Self::Identifier, writer: Self::Writer);
+    fn add_subscriber(&self, id: Self::Identifier, writer: Self::Writer);
 
     async fn publish(&self, id: &Self::Identifier, payload: Self::Payload);
 }

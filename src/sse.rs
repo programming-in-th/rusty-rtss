@@ -10,7 +10,6 @@ use crate::event::Publisher;
 pub struct SsePublisher<I, P> {
     connections: Arc<DashMap<I, UnboundedSender<Event>>>,
     _payload: PhantomData<P>,
-    _id: PhantomData<I>,
 }
 
 #[async_trait::async_trait]
@@ -24,13 +23,13 @@ where
     type Target = Event;
     type Writer = UnboundedSender<Event>;
 
-    fn add_subscriber(&mut self, id: Self::Identifier, writer: Self::Writer) {
+    fn add_subscriber(&self, id: Self::Identifier, writer: Self::Writer) {
         log::info!("Received add subscriber");
 
         let connections = Arc::clone(&self.connections);
         tokio::spawn(async move {
             tokio::time::sleep(Duration::from_secs(30)).await;
-            connections.remove(&id)
+            connections.remove(&id);
         });
 
         self.connections.insert(id, writer);
@@ -58,7 +57,6 @@ impl<I, P> SsePublisher<I, P> {
         SsePublisher {
             connections: Arc::new(Default::default()),
             _payload: Default::default(),
-            _id: Default::default(),
         }
     }
 }
