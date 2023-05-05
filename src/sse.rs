@@ -1,4 +1,4 @@
-use std::marker::PhantomData;
+use std::{marker::PhantomData, sync::Arc, time::Duration};
 
 use axum::response::sse::Event;
 use futures::{channel::mpsc::UnboundedSender, SinkExt};
@@ -8,7 +8,7 @@ use dashmap::DashMap;
 use crate::event::Publisher;
 
 pub struct SsePublisher<I, P> {
-    connections: DashMap<I, UnboundedSender<Event>>,
+    connections: Arc<DashMap<I, UnboundedSender<Event>>>,
     _payload: PhantomData<P>,
     _id: PhantomData<I>,
 }
@@ -17,7 +17,7 @@ pub struct SsePublisher<I, P> {
 impl<I, P> Publisher for SsePublisher<I, P>
 where
     P: Send + Sync + Into<Event>,
-    I: Send + Sync + std::hash::Hash + Eq,
+    I: Send + Sync + std::hash::Hash + Eq + Copy + 'static,
 {
     type Payload = P;
     type Identifier = I;
@@ -27,9 +27,13 @@ where
     fn add_subscriber(&mut self, id: Self::Identifier, writer: Self::Writer) {
         log::info!("Received add subscriber");
 
-        self.connections.insert(id, writer);
+        let connections = Arc::clone(&self.connections);
+        tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_secs(30)).await;
+            connections.remove(&id)
+        });
 
-        // TODO handle timeout
+        self.connections.insert(id, writer);
     }
 
     async fn publish(&self, id: &Self::Identifier, payload: Self::Payload) {
@@ -52,7 +56,7 @@ impl<I, P> SsePublisher<I, P> {
         I: Eq + std::hash::Hash,
     {
         SsePublisher {
-            connections: Default::default(),
+            connections: Arc::new(Default::default()),
             _payload: Default::default(),
             _id: Default::default(),
         }

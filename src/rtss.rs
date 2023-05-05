@@ -65,10 +65,14 @@ impl<I, W, T> App<I, W, T> {
 
     /// Push add subscriber event to message queue.
     pub async fn add_subscriber(&self, id: I, writer: W) -> Result<(), Box<dyn std::error::Error>> {
-        Ok(self
+        let res = self
             .event_writer
             .clone()
             .send(Event::AddSubscriber(id, writer))
-            .await?)
+            .await?;
+
+        tokio::task::yield_now().await;
+
+        Ok(res)
     }
 }
