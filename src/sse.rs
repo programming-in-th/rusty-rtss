@@ -1,4 +1,4 @@
-use std::{marker::PhantomData, sync::Arc, time::Duration};
+use std::{fmt::Debug, marker::PhantomData, sync::Arc, time::Duration};
 
 use axum::response::sse::Event;
 use futures::{channel::mpsc::UnboundedSender, SinkExt};
@@ -15,8 +15,8 @@ pub struct SsePublisher<I, P> {
 #[async_trait::async_trait]
 impl<I, P> Publisher for SsePublisher<I, P>
 where
-    P: Send + Sync + Into<Event>,
-    I: Send + Sync + std::hash::Hash + Eq + Copy + 'static,
+    P: Send + Sync + Into<Event> + Debug,
+    I: Send + Sync + std::hash::Hash + Eq + Copy + 'static + Debug,
 {
     type Payload = P;
     type Identifier = I;
@@ -29,6 +29,7 @@ where
         let connections = Arc::clone(&self.connections);
         tokio::spawn(async move {
             tokio::time::sleep(Duration::from_secs(30)).await;
+            log::debug!("timeout: {id:?}");
             connections.remove(&id);
         });
 
@@ -40,6 +41,8 @@ where
         if let Some(conns) = self.connections.get(id) {
             // Sender is cloneable
             let mut writer = conns.value().clone();
+
+            log::debug!("found subscriber, publishing: {payload:?}");
 
             if let Err(e) = writer.send(<P as Into<Event>>::into(payload)).await {
                 log::warn!("unable to publish: {e:?}");
