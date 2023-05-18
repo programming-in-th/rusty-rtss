@@ -1,4 +1,4 @@
-use super::event::{Listener, Publisher};
+use super::{listener::Listener, publisher::Publisher};
 
 use futures_util::StreamExt;
 use std::sync::Arc;

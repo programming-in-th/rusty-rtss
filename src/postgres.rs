@@ -4,7 +4,7 @@ use futures::stream::BoxStream;
 use futures_util::StreamExt;
 use sqlx::postgres::PgNotification;
 
-use super::event::Listener;
+use super::listener::Listener;
 
 pub trait Identifiable {
     type Identifier;

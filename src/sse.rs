@@ -5,7 +5,7 @@ use futures::{channel::mpsc::UnboundedSender, SinkExt};
 
 use dashmap::DashMap;
 
-use crate::event::Publisher;
+use crate::publisher::Publisher;
 
 pub struct SsePublisher<I, P> {
     connections: Arc<DashMap<I, UnboundedSender<Event>>>,
