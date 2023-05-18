@@ -88,10 +88,9 @@ async fn main() {
     log::info!("Connection to database");
     let listener = PgListener::<Identifier, Payload>::connect(PgListenerConfig {
         channels: vec!["update"],
-        // url: std::env::var("DB_CONNECTION_STRING")
-        //     .expect("DB connection is not provided")
-        //     .as_str(),
-        url: "postgres://postgres:1234@localhost:5433",
+        url: std::env::var("DB_CONNECTION_STRING")
+            .expect("DB connection is not provided")
+            .as_str(),
     })
     .await
     .expect("unable to connect to database");
