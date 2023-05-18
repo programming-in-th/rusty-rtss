@@ -88,7 +88,7 @@ async fn main() {
     log::info!("Connection to database");
     let listener = PgListener::<Identifier, Payload>::connect(PgListenerConfig {
         channels: vec!["update"],
-        url: std::env::var("DB_CONNECTION_STRING")
+        url: std::env::var("DB_CONNECTION_URI")
             .expect("DB connection is not provided")
             .as_str(),
     })
