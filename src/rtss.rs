@@ -1,5 +1,3 @@
-use crate::sse::Identifiable;
-
 use super::{listener::Listener, publisher::Publisher};
 
 use futures_util::StreamExt;
@@ -12,12 +10,11 @@ pub struct App<P> {
 }
 
 impl<P> App<P> {
-    pub fn new<L, I, T>(listener: L, publisher: P) -> Result<Self, Box<dyn std::error::Error>>
+    pub fn new<L, T>(listener: L, publisher: P) -> Result<Self, Box<dyn std::error::Error>>
     where
         L: Listener<Data = T> + 'static,
         P: Publisher<PublishData = T> + 'static,
-        I: Send + Sync + 'static,
-        T: Send + Sync + 'static + Identifiable<Identifier = I>,
+        T: Send + Sync + 'static,
     {
         let publisher = Arc::new(publisher);
 
