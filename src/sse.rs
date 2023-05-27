@@ -43,7 +43,7 @@ where
     }
 
     async fn publish(&self, data: Self::PublishData) {
-        log::info!("Received add publish");
+        log::debug!("Received add publish");
 
         let id = data.id();
 
