@@ -44,7 +44,6 @@ impl<P> App<P> {
         })
     }
 
-    /// Push add subscriber event to message queue.
     pub async fn add_subscriber<I, W, T>(
         &self,
         id: I,
