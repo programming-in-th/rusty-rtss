@@ -18,7 +18,7 @@ tokio = { version = "1.28.0", features = ["rt-multi-thread", "tokio-macros", "ma
 
 [[bin]]
 name = "main"
-path = "src/main.rs"
+path = "bin/main.rs"
 
 [lib]
 name = "rusty_rtss"
