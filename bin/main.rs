@@ -12,8 +12,8 @@ use axum::{
 use futures::channel::mpsc::unbounded;
 
 use rusty_rtss::{
-    postgres::{PgListener, PgListenerConfig},
     app::App,
+    postgres::{PgListener, PgListenerConfig},
     sse::{SsePublisher, SseSubscriber},
 };
 
@@ -26,7 +26,29 @@ mod payload {
     #[derive(Debug, Deserialize, Serialize)]
     pub struct Payload {
         pub id: i32,
-        pub payload: String,
+        pub groups: Vec<Group>,
+        pub score: i32,
+        pub status: String,
+    }
+
+    #[derive(Debug, Deserialize, Serialize)]
+    pub struct Group {
+        score: f64,
+        full_score: f64,
+        submission_id: String,
+        group_index: i32,
+        run_result: Vec<RunResult>,
+    }
+
+    #[derive(Debug, Deserialize, Serialize)]
+    pub struct RunResult {
+        submission_id: String,
+        test_index: i32,
+        status: String,
+        time_usage: f64,
+        memory_usage: i32,
+        score: f64,
+        message: String,
     }
 
     impl Identifiable for Payload {
