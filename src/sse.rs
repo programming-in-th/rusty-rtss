@@ -12,19 +12,25 @@ pub struct SsePublisher<I, P> {
     _payload: PhantomData<P>,
 }
 
+pub trait Identifiable {
+    type Identifier;
+
+    fn id(&self) -> Self::Identifier;
+}
+
 #[async_trait::async_trait]
 impl<I, P> Publisher for SsePublisher<I, P>
 where
-    P: Send + Sync + Into<Event> + Debug,
+    P: Send + Sync + Into<Event> + Debug + Identifiable<Identifier = I>,
     I: Send + Sync + std::hash::Hash + Eq + Copy + 'static + Debug,
 {
-    type Payload = P;
-    type Identifier = I;
-    type Target = Event;
-    type Writer = UnboundedSender<Event>;
+    type Subscriber = SseSubscriber<I>;
+    type PublishData = P;
 
-    fn add_subscriber(&self, id: Self::Identifier, writer: Self::Writer) {
+    fn add_subscriber(&self, subscriber: Self::Subscriber) {
         log::info!("Received add subscriber");
+
+        let SseSubscriber { id, writer } = subscriber;
 
         let connections = Arc::clone(&self.connections);
         tokio::spawn(async move {
@@ -36,17 +42,20 @@ where
         self.connections.insert(id, writer);
     }
 
-    async fn publish(&self, id: &Self::Identifier, payload: Self::Payload) {
+    async fn publish(&self, data: Self::PublishData) {
         log::info!("Received add publish");
-        if let Some(conns) = self.connections.get(id) {
+
+        let id = data.id();
+
+        if let Some(conns) = self.connections.get(&id) {
             // Sender is cloneable
             let mut writer = conns.value().clone();
 
-            log::debug!("found subscriber, publishing: {payload:?}");
+            log::debug!("found subscriber, publishing: {data:?}");
 
-            if let Err(e) = writer.send(<P as Into<Event>>::into(payload)).await {
+            if let Err(e) = writer.send(<P as Into<Event>>::into(data)).await {
                 log::warn!("unable to publish: {e:?}");
-                self.connections.remove(id);
+                self.connections.remove(&id);
             }
         }
     }
@@ -61,5 +70,16 @@ impl<I, P> SsePublisher<I, P> {
             connections: Arc::new(Default::default()),
             _payload: Default::default(),
         }
+    }
+}
+
+pub struct SseSubscriber<I> {
+    id: I,
+    writer: UnboundedSender<Event>,
+}
+
+impl<I> SseSubscriber<I> {
+    pub fn new(id: I, writer: UnboundedSender<Event>) -> Self {
+        Self { id, writer }
     }
 }

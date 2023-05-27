@@ -1,14 +1,10 @@
-use futures_util::Sink;
-
 /// Make it easier to switch between client implementation (e.g. ws <-> sse)
 #[async_trait::async_trait]
 pub trait Publisher: Send + Sync {
-    type Payload: Into<Self::Target>;
-    type Identifier;
-    type Target;
-    type Writer: Sink<Self::Target>;
+    type Subscriber;
+    type PublishData;
 
-    fn add_subscriber(&self, id: Self::Identifier, writer: Self::Writer);
+    fn add_subscriber(&self, subscriber: Self::Subscriber);
 
-    async fn publish(&self, id: &Self::Identifier, payload: Self::Payload);
+    async fn publish(&self, data: Self::PublishData);
 }

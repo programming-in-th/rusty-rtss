@@ -14,12 +14,12 @@ use futures::channel::mpsc::unbounded;
 use rusty_rtss::{
     postgres::{PgListener, PgListenerConfig},
     rtss::App,
-    sse::SsePublisher,
+    sse::{SsePublisher, SseSubscriber},
 };
 
 mod payload {
     use axum::response::sse::Event;
-    use rusty_rtss::postgres::Identifiable;
+    use rusty_rtss::sse::Identifiable;
     use serde::{Deserialize, Serialize};
     use sqlx::postgres::PgNotification;
 
@@ -32,11 +32,8 @@ mod payload {
     impl Identifiable for Payload {
         type Identifier = i32;
 
-        fn from(input: PgNotification) -> (i32, Self) {
-            let v: Payload =
-                serde_json::from_str(input.payload()).expect("unable to deserialize json");
-
-            (v.id, v)
+        fn id(&self) -> Self::Identifier {
+            self.id
         }
     }
 
@@ -45,6 +42,12 @@ mod payload {
             Event::default()
                 .json_data(self)
                 .expect("unable to serialize payload")
+        }
+    }
+
+    impl From<PgNotification> for Payload {
+        fn from(value: PgNotification) -> Self {
+            serde_json::from_str(value.payload()).unwrap()
         }
     }
 }
@@ -63,8 +66,10 @@ async fn handler(
 ) -> impl IntoResponse {
     let (tx, rx) = unbounded::<Event>();
 
+    let subscriber = SseSubscriber::new(submission_id, tx);
+
     let _ = shared_state
-        .add_subscriber(submission_id, tx)
+        .add_subscriber(subscriber)
         .await
         .inspect_err(|err| {
             log::warn!("error while adding subscriber: {err:?}");
@@ -86,7 +91,7 @@ async fn main() {
     env_logger::init();
 
     log::info!("Connection to database");
-    let listener = PgListener::<Identifier, Payload>::connect(PgListenerConfig {
+    let listener = PgListener::<Payload>::connect(PgListenerConfig {
         channels: vec!["update"],
         url: std::env::var("DB_CONNECTION_URI")
             .expect("DB connection is not provided")

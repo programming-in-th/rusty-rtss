@@ -1,3 +1,5 @@
+use crate::sse::Identifiable;
+
 use super::{listener::Listener, publisher::Publisher};
 
 use futures_util::StreamExt;
@@ -10,13 +12,12 @@ pub struct App<P> {
 }
 
 impl<P> App<P> {
-    pub fn new<L, I, W, T>(listener: L, publisher: P) -> Result<Self, Box<dyn std::error::Error>>
+    pub fn new<L, I, T>(listener: L, publisher: P) -> Result<Self, Box<dyn std::error::Error>>
     where
-        L: Listener<Payload = T, Identifier = I> + 'static,
-        P: Publisher<Payload = T, Identifier = I, Writer = W> + 'static,
+        L: Listener<Data = T> + 'static,
+        P: Publisher<PublishData = T> + 'static,
         I: Send + Sync + 'static,
-        W: Send + Sync + 'static,
-        T: Send + Sync + 'static,
+        T: Send + Sync + 'static + Identifiable<Identifier = I>,
     {
         let publisher = Arc::new(publisher);
 
@@ -26,13 +27,13 @@ impl<P> App<P> {
             let stream = listener.into_stream();
 
             stream
-                .for_each_concurrent(10, move |(id, payload)| {
+                .for_each_concurrent(10, move |payload| {
                     let cloned_publisher = Arc::clone(&cloned_publisher);
 
                     async move {
                         let cloned_publisher = cloned_publisher;
 
-                        cloned_publisher.publish(&id, payload).await;
+                        cloned_publisher.publish(payload).await;
                     }
                 })
                 .await
@@ -44,17 +45,11 @@ impl<P> App<P> {
         })
     }
 
-    pub async fn add_subscriber<I, W, T>(
-        &self,
-        id: I,
-        writer: W,
-    ) -> Result<(), Box<dyn std::error::Error>>
+    pub async fn add_subscriber<S>(&self, subscriber: S) -> Result<(), Box<dyn std::error::Error>>
     where
-        P: Publisher<Payload = T, Identifier = I, Writer = W> + 'static,
-        I: Send + Sync + 'static,
-        W: Send + Sync + 'static,
+        P: Publisher<Subscriber = S> + 'static,
     {
-        self.publisher.add_subscriber(id, writer);
+        self.publisher.add_subscriber(subscriber);
 
         tokio::task::yield_now().await;
 
