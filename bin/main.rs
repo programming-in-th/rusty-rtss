@@ -13,7 +13,7 @@ use futures::channel::mpsc::unbounded;
 
 use rusty_rtss::{
     postgres::{PgListener, PgListenerConfig},
-    rtss::App,
+    app::App,
     sse::{SsePublisher, SseSubscriber},
 };
 
