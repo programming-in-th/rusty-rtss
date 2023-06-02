@@ -33,5 +33,4 @@ jobs:
         with:
           toolchain: nightly
       - name: Run cargo check
-        uses: actions-rs/cargo@v1
         run: cargo test --verbose --release -- --nocapture
