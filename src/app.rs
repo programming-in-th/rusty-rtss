@@ -38,7 +38,7 @@ impl<P> App<P> {
 
         Ok(App {
             _handle: handle,
-            publisher: publisher,
+            publisher,
         })
     }
 

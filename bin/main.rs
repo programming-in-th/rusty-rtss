@@ -60,10 +60,10 @@ mod payload {
         }
     }
 
-    impl Into<Event> for Payload {
-        fn into(self) -> Event {
+    impl From<Payload> for Event {
+        fn from(value: Payload) -> Self {
             Event::default()
-                .json_data(self)
+                .json_data(value)
                 .expect("unable to serialize payload")
         }
     }
@@ -100,9 +100,7 @@ async fn handler(
 
     let rx = rx.map(Result::<Event, Error>::Ok);
 
-    let sse = Sse::new(rx);
-
-    sse
+    Sse::new(rx)
 }
 
 async fn healthz() -> impl IntoResponse {

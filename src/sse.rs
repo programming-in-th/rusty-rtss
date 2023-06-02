@@ -68,6 +68,8 @@ where
     }
 }
 
+// default is not possible due to trait bound
+#[allow(clippy::new_without_default)]
 impl<I, P> SsePublisher<I, P> {
     pub fn new() -> Self
     where
