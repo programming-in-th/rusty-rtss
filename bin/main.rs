@@ -16,6 +16,7 @@ use rusty_rtss::{
     postgres::{PgListener, PgListenerConfig},
     sse::{SsePublisher, SseSubscriber},
 };
+use tower_http::cors::Any;
 
 mod payload {
     use axum::response::sse::Event;
@@ -132,9 +133,12 @@ async fn main() {
     log::info!("Creating app");
     let shared_state = Arc::new(App::new(listener, publisher).expect("unable to create app"));
 
+    let cors = tower_http::cors::CorsLayer::new().allow_methods(Any).allow_origin(Any);
+
     let app = Router::new()
         .route("/:submission_id", get(handler))
         .route("/", get(healthz))
+        .layer(cors)
         .with_state(shared_state);
 
     log::info!("Serving on {addr:?}");
