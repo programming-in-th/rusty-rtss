@@ -47,6 +47,8 @@ where
 
         let id = data.id();
 
+        let mut remove_id = None;
+
         if let Some(conns) = self.connections.get(&id) {
             // Sender is cloneable
             let mut writer = conns.value().clone();
@@ -55,8 +57,13 @@ where
 
             if let Err(e) = writer.send(<P as Into<Event>>::into(data)).await {
                 log::warn!("unable to publish: {e:?}");
-                self.connections.remove(&id);
+                remove_id = Some(id);
+                writer.close().await.unwrap();
             }
+        }
+
+        if let Some(remove_id) = remove_id {
+            self.connections.remove(&remove_id);
         }
     }
 }
