@@ -15,13 +15,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
       - name: Get toolchain
-        uses: actions-rs/toolchain@v1
+      - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: nightly
           components: clippy
-          override: true
       - name: Run linter
-        uses: actions-rs/clippy@master
-        with:
-          args: >
-            --all-features
+        run: cargo clippy --all-features

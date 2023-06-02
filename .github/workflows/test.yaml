@@ -15,33 +15,23 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
       - name: Get toolchain
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: nightly
-          override: true
       - name: Run cargo check
-        uses: actions-rs/cargo@v1
-        with:
-          command: check --release
+        run: cargo check --release
 
   test:
-    name: 'Build and test library'
+    name: 'Build and test'
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v2
       - name: Get toolchain
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: nightly
-          override: true
       - name: Run cargo check
         uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: >
-           --verbose 
-           --release 
-           -- 
-           --nocapture
+        run: cargo test --verbose --release -- --nocapture
