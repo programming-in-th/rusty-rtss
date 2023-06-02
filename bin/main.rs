@@ -112,11 +112,15 @@ async fn healthz() -> impl IntoResponse {
 async fn main() {
     env_logger::init();
 
+    let port = std::env::var("RTSS_PORT").expect("`RTSS_PORT` is not provided");
+
+    let addr = format!("0.0.0.0:{port}").parse().unwrap();
+
     log::info!("Connection to database");
     let listener = PgListener::<Payload>::connect(PgListenerConfig {
         channels: vec!["update"],
         url: std::env::var("DB_CONNECTION_URI")
-            .expect("DB connection is not provided")
+            .expect("`DB_CONNECTION_URI` is not provided")
             .as_str(),
     })
     .await
@@ -133,8 +137,8 @@ async fn main() {
         .route("/", get(healthz))
         .with_state(shared_state);
 
-    log::info!("Serving on 0.0.0.0:3000");
-    Server::bind(&"0.0.0.0:3000".parse().unwrap())
+    log::info!("Serving on {addr:?}");
+    Server::bind(&addr)
         .serve(app.into_make_service())
         .await
         .unwrap();
