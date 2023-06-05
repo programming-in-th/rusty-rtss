@@ -41,6 +41,18 @@ impl<P> PgListener<P> {
             _payload: Default::default(),
         })
     }
+
+    pub async fn from_pool<'a, T>(pool: &sqlx::postgres::PgPool, channels: Vec<&'a str>) -> Result<Self, Box<dyn std::error::Error>>
+    {
+        let mut con = sqlx::postgres::PgListener::connect_with(pool).await?;
+
+        con.listen_all(channels).await?;
+
+        Ok(PgListener {
+            listener: con,
+            _payload: Default::default(),
+        })
+    }
 }
 
 pub struct PgListenerConfig<'a> {
