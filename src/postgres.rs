@@ -42,8 +42,10 @@ impl<P> PgListener<P> {
         })
     }
 
-    pub async fn from_pool<'a, T>(pool: &sqlx::postgres::PgPool, channels: Vec<&'a str>) -> Result<Self, Box<dyn std::error::Error>>
-    {
+    pub async fn from_pool(
+        pool: &sqlx::postgres::PgPool,
+        channels: Vec<&str>,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
         let mut con = sqlx::postgres::PgListener::connect_with(pool).await?;
 
         con.listen_all(channels).await?;
