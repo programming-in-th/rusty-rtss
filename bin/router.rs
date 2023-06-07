@@ -5,7 +5,7 @@ use axum::{
     Router,
 };
 use futures::channel::mpsc::unbounded;
-use futures_util::StreamExt;
+use futures_util::{SinkExt, StreamExt};
 use rusty_rtss::sse::SseSubscriber;
 use tower_http::cors::Any;
 
@@ -21,11 +21,27 @@ async fn handler(
     Path(submission_id): Path<i32>,
     State(shared_state): State<SharedState>,
 ) -> impl IntoResponse {
-    let (tx, rx) = unbounded::<Event>();
+    let (mut tx, rx) = unbounded::<Event>();
 
-    let subscriber = SseSubscriber::new(submission_id, tx);
+    let subscriber = SseSubscriber::new(submission_id, tx.clone());
+
+    tokio::spawn(async move {
+        let repository = shared_state.repository.clone();
+
+        match repository.get_submission_by_id(submission_id).await {
+            Err(e) => {
+                log::warn!("Unable to received payload: {e}");
+            }
+            Ok(payload) => {
+                if let Err(e) = tx.send(payload.into()).await {
+                    log::warn!("Unable to send payload: {e}");
+                }
+            }
+        };
+    });
 
     let _ = shared_state
+        .app
         .add_subscriber(subscriber)
         .await
         .inspect_err(|err| {
