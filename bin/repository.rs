@@ -21,7 +21,7 @@ impl SubmisisonRepository {
         query_args.reserve(1usize, 4);
         query_args.add(arg0);
         let row = query_with::<Postgres, _>(
-            "SELECT id, groups, score, status FROM submission WHERE id + 1 > $1",
+            "SELECT id, groups, score, status FROM submission WHERE id = $1",
             query_args,
         )
         .fetch_one(&self.pool)
