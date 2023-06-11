@@ -1,5 +1,6 @@
 mod builder;
-mod postgres;
-mod reconnector;
+mod connector;
+mod listener;
 
-pub use postgres::{PgListener, PgListenerConfig};
+pub use connector::PgConnector;
+pub use listener::PgListener;

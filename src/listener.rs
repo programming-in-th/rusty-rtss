@@ -7,3 +7,14 @@ pub trait Listener: Send + Sync {
 
     fn into_stream(self) -> Self::S;
 }
+
+#[async_trait::async_trait]
+pub trait Connector: Send + Sync {
+    type Listener: Listener;
+
+    /// `None` indicates that there will be no connection continue
+    /// the default implementation is also `None`
+    async fn connect(&self) -> Option<Self::Listener> {
+        None
+    }
+}

@@ -1,9 +1,9 @@
 use crate::config::Config;
+use rusty_rtss::postgres::PgConnector;
 use sqlx::postgres::PgPool;
 
 use super::Payload;
 use super::Result;
-use rusty_rtss::postgres::PgListener;
 
 pub async fn get_pool_from_config(config: &Config) -> Result<PgPool> {
     PgPool::connect(&config.postgres.uri)
@@ -11,10 +11,13 @@ pub async fn get_pool_from_config(config: &Config) -> Result<PgPool> {
         .map_err(Into::into)
 }
 
-pub async fn get_listener_from_pool(pool: &PgPool, config: &Config) -> Result<PgListener<Payload>> {
+pub async fn get_connector_from_pool(
+    pool: &PgPool,
+    config: &Config,
+) -> Result<PgConnector<Payload>> {
     let channels = config.postgres.listen_channels.clone();
 
-    PgListener::builder()
+    PgConnector::builder()
         .with_pool(pool)
         .add_channels(channels)
         .build()

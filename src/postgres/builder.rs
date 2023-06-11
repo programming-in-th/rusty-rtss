@@ -2,18 +2,18 @@ use std::marker::PhantomData;
 
 use sqlx::PgPool;
 
-use super::{PgListener, PgListenerConfig};
+use super::connector::PgConnector;
 
-pub struct PgListenerBuilder<P> {
+pub struct PgConnectorBuilder<P> {
     url: Option<String>,
     pool: Option<PgPool>,
     listen_channels: Vec<String>,
     _payload: PhantomData<P>,
 }
 
-impl<P> PgListenerBuilder<P> {
+impl<P> PgConnectorBuilder<P> {
     pub(super) fn new() -> Self {
-        PgListenerBuilder {
+        Self {
             url: None,
             pool: None,
             listen_channels: Vec::with_capacity(1),
@@ -49,7 +49,7 @@ impl<P> PgListenerBuilder<P> {
         self
     }
 
-    pub async fn build(self) -> Result<PgListener<P>, Box<dyn std::error::Error>> {
+    pub async fn build(self) -> Result<PgConnector<P>, Box<dyn std::error::Error>> {
         let url = self.url;
         let pool = self.pool;
         let listen_channels = self.listen_channels;
@@ -58,27 +58,16 @@ impl<P> PgListenerBuilder<P> {
             (None, None) | (Some(..), Some(..)) => {
                 Err("Either url or pool needed to be supplied".into())
             }
-            (None, Some(pool)) => Self::build_with_pool(pool, listen_channels).await,
-            (Some(url), None) => Self::build_with_url(url, listen_channels).await,
+            (None, Some(pool)) => Ok(Self::build_with_pool(pool, listen_channels)),
+            (Some(url), None) => Ok(Self::build_with_url(url, listen_channels)),
         }
     }
 
-    async fn build_with_url(
-        url: String,
-        listen_channels: Vec<String>,
-    ) -> Result<PgListener<P>, Box<dyn std::error::Error>> {
-        let config = PgListenerConfig {
-            channels: listen_channels,
-            url,
-        };
-
-        PgListener::connect(config).await
+    fn build_with_url(url: String, listen_channels: Vec<String>) -> PgConnector<P> {
+        PgConnector::from_url(url, listen_channels)
     }
 
-    async fn build_with_pool(
-        pool: PgPool,
-        listen_channels: Vec<String>,
-    ) -> Result<PgListener<P>, Box<dyn std::error::Error>> {
-        PgListener::from_pool(&pool, listen_channels).await
+    fn build_with_pool(pool: PgPool, listen_channels: Vec<String>) -> PgConnector<P> {
+        PgConnector::from_pool(pool, listen_channels)
     }
 }

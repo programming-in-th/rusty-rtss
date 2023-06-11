@@ -1,30 +1,35 @@
+use crate::listener::Connector;
+
 use super::{listener::Listener, publisher::Publisher};
 
-use futures_util::StreamExt;
+use futures_util::{Stream, StreamExt};
 use std::sync::Arc;
 
-struct Inner<P> {
+struct Inner<C, P> {
+    connector: C,
     publisher: P,
 }
 
-pub struct App<P> {
-    inner: Arc<Inner<P>>,
+/// Wrapper around [Inner](Inner)
+/// All of the logic should be perform in [Inner](Inner)
+pub struct App<C, P> {
+    inner: Arc<Inner<C, P>>,
 }
 
-impl<P> App<P> {
-    pub fn new<L, T>(listener: L, publisher: P) -> Result<Self, Box<dyn std::error::Error>>
+impl<C, P> App<C, P> {
+    pub async fn new<T>(connector: C, publisher: P) -> Result<Self, Box<dyn std::error::Error>>
     where
-        L: Listener<Data = T> + 'static,
         P: Publisher<PublishData = T> + 'static,
         T: Send + Sync + 'static,
+        C: Connector + 'static,
+        <C as Connector>::Listener: Listener<Data = T> + 'static,
     {
-        let inner = Arc::new(Inner { publisher });
-
-        let cloned_inner = Arc::clone(&inner);
+        let inner = Arc::new(Inner {
+            connector,
+            publisher,
+        });
 
         let app = App { inner };
-
-        let _handle = tokio::spawn(cloned_inner.add_listener(listener));
 
         Ok(app)
     }
@@ -44,22 +49,28 @@ impl<P> App<P> {
         Ok(())
     }
 
-    pub async fn add_listener<L, T>(
-        &self,
-        listener: L,
-    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>>
+    pub fn add_stream<S, T>(&self, stream: S) -> tokio::task::JoinHandle<()>
     where
-        L: Listener<Data = T> + 'static,
+        S: Stream<Item = T> + Send + 'static,
+        P: Publisher<PublishData = T> + 'static,
+        T: Send + Sync + 'static,
+        C: Send + Sync + 'static,
+    {
+        Arc::clone(&self.inner).add_stream(stream)
+    }
+
+    pub async fn handle_connection<T>(&self) -> Result<(), tokio::task::JoinError>
+    where
+        C: Connector + 'static,
+        <C as Connector>::Listener: Listener<Data = T>,
         P: Publisher<PublishData = T> + 'static,
         T: Send + Sync + 'static,
     {
-        let inner = Arc::clone(&self.inner);
-
-        inner.add_listener(listener).await
+        Arc::clone(&self.inner).handle_connection().await
     }
 }
 
-impl<P> Clone for App<P> {
+impl<C, P> Clone for App<C, P> {
     fn clone(&self) -> Self {
         App {
             inner: Arc::clone(&self.inner),
@@ -67,7 +78,7 @@ impl<P> Clone for App<P> {
     }
 }
 
-impl<P> Inner<P> {
+impl<C, P> Inner<C, P> {
     pub async fn add_subscriber<S>(
         self: Arc<Self>,
         subscriber: S,
@@ -80,26 +91,20 @@ impl<P> Inner<P> {
         Ok(())
     }
 
-    pub async fn add_listener<L, T>(
-        self: Arc<Self>,
-        listener: L,
-    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>>
+    pub fn add_stream<S, T>(self: Arc<Self>, stream: S) -> tokio::task::JoinHandle<()>
     where
-        L: Listener<Data = T> + 'static,
+        S: Stream<Item = T> + Send + 'static,
         P: Publisher<PublishData = T> + 'static,
         T: Send + Sync + 'static,
+        C: Send + Sync + 'static,
     {
-        let stream = listener.into_stream();
-
         tokio::spawn(async move {
             stream
                 .for_each_concurrent(10, move |payload| Arc::clone(&self).handle_payload(payload))
                 .await;
-    
+
             log::info!("Stream end");
-        });
-        
-        Ok(())
+        })
     }
 
     async fn handle_payload<T>(self: Arc<Self>, payload: T)
@@ -107,8 +112,27 @@ impl<P> Inner<P> {
         P: Publisher<PublishData = T> + 'static,
         T: Send + Sync + 'static,
     {
-        let inner = Arc::clone(&self);
+        self.publisher.publish(payload).await
+    }
 
-        inner.publisher.publish(payload).await
+    /// Future become ready after connector give up on connection
+    async fn handle_connection<T>(self: Arc<Self>) -> Result<(), tokio::task::JoinError>
+    where
+        C: Connector + 'static,
+        <C as Connector>::Listener: Listener<Data = T>,
+        P: Publisher<PublishData = T> + 'static,
+        T: Send + Sync + 'static,
+    {
+        tokio::spawn(async move {
+            while let Some(listener) = self.connector.connect().await {
+                let stream_handle = Arc::clone(&self).add_stream(listener.into_stream());
+
+                stream_handle.await?
+            }
+            log::info!("Connector give up");
+            Ok(())
+        })
+        .await
+        .flatten()
     }
 }
