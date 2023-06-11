@@ -12,11 +12,12 @@ pub async fn get_pool_from_config(config: &Config) -> Result<PgPool> {
 }
 
 pub async fn get_listener_from_pool(pool: &PgPool, config: &Config) -> Result<PgListener<Payload>> {
-    let channels = &config.postgres.listen_channels;
+    let channels = config.postgres.listen_channels.clone();
 
-    let channels = channels.iter().map(|x| x.as_str()).collect();
-
-    PgListener::from_pool(pool, channels)
+    PgListener::builder()
+        .with_pool(pool)
+        .add_channels(channels)
+        .build()
         .await
-        .map_err(|_| "unable to get listener from pool".into())
+        .map_err(|_| "Unable to get listener from pool".into())
 }
