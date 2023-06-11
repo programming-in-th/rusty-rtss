@@ -20,7 +20,7 @@ type Payload = payload::Payload;
 
 #[derive(Clone)]
 pub struct SharedState {
-    app: Arc<App<SsePublisher<Identifier, Payload>>>,
+    app: App<SsePublisher<Identifier, Payload>>,
     repository: SubmisisonRepository,
 }
 
@@ -52,7 +52,7 @@ async fn main() {
     let publisher = publisher::get_publisher();
     log::info!("Created publisher");
 
-    let app = Arc::new(App::new(listener, publisher).expect("Unable to create app"));
+    let app = App::new(listener, publisher).expect("Unable to create app");
     log::info!("Created app");
 
     let shared_state = SharedState { app, repository };
