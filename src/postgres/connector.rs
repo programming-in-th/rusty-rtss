@@ -50,26 +50,30 @@ where
     type Listener = PgListener<P>;
 
     async fn connect(&self) -> Option<Self::Listener> {
-        let mut lock = self.last_attempt_handle.lock().await;
+        let mut listener = loop {
+            let mut lock = self.last_attempt_handle.lock().await;
 
-        if let Some(handle) = lock.take() {
-            if let Err(e) = handle.await {
-                log::error!("Reconnect join error: {e:?}");
+            if let Some(handle) = lock.take() {
+                if let Err(e) = handle.await {
+                    log::error!("Reconnect join error: {e:?}");
+                }
             }
-        }
 
-        let new_handle = tokio::spawn(async move {
-            tokio::time::sleep(Duration::from_secs(30)).await;
-        });
+            let new_handle = tokio::spawn(async move {
+                tokio::time::sleep(Duration::from_secs(180)).await;
+            });
 
-        *lock = Some(new_handle);
-        drop(lock);
+            *lock = Some(new_handle);
+            drop(lock);
 
-        log::trace!("Trying to connect to database...");
-        let mut listener = match &self.connection_method {
-            ConnectionMethod::Url(url) => sqlx::postgres::PgListener::connect(url).await.ok()?,
-            ConnectionMethod::Pool(pool) => {
-                sqlx::postgres::PgListener::connect_with(pool).await.ok()?
+            log::trace!("Trying to connect to database...");
+            if let Some(listener) = match &self.connection_method {
+                ConnectionMethod::Url(url) => sqlx::postgres::PgListener::connect(url).await.ok(),
+                ConnectionMethod::Pool(pool) => {
+                    sqlx::postgres::PgListener::connect_with(pool).await.ok()
+                }
+            } {
+                break listener;
             }
         };
 
