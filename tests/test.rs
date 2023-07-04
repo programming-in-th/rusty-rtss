@@ -13,7 +13,10 @@ mod mock {
     use dashmap::DashMap;
     use futures::channel::mpsc::{UnboundedReceiver, UnboundedSender};
     use futures_util::stream::BoxStream;
-    use rusty_rtss::{listener::Listener, publisher::Publisher};
+    use rusty_rtss::{
+        listener::{Connector, Listener},
+        publisher::Publisher,
+    };
 
     type Writer = UnboundedSender<Payload>;
     type Reader = UnboundedReceiver<Payload>;
@@ -93,28 +96,62 @@ mod mock {
             Self { rx }
         }
     }
+
+    pub struct MockConnector {
+        rx: Mutex<Option<Reader>>,
+    }
+
+    impl MockConnector {
+        pub fn new(rx: Reader) -> Self {
+            Self {
+                rx: Mutex::new(Some(rx)),
+            }
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl Connector for MockConnector {
+        type Listener = MockListener;
+
+        async fn connect(&self) -> Option<Self::Listener> {
+            let rx = self.rx.lock().unwrap().take();
+
+            if let Some(rx) = rx {
+                Some(MockListener::new(rx))
+            } else {
+                None
+            }
+        }
+    }
 }
 
-fn get_app() -> (
-    App<mock::MockFanoutPublisher>,
+async fn get_app() -> (
+    App<mock::MockConnector, mock::MockFanoutPublisher>,
     UnboundedSender<mock::Payload>,
 ) {
     let (input, rx) = futures::channel::mpsc::unbounded();
-    let listener = mock::MockListener::new(rx);
+    let connector = mock::MockConnector::new(rx);
     let publisher = mock::MockFanoutPublisher::new();
 
     (
-        App::new(listener, publisher).expect("unable to create app"),
+        App::new(connector, publisher)
+            .await
+            .expect("unable to create app"),
         input,
     )
 }
 
 #[tokio::test]
 async fn test_one_subscriber() {
-    let (app, mut input) = get_app();
+    let (app, mut input) = get_app().await;
 
     let (tx, mut rx) = futures::channel::mpsc::unbounded();
     let subscriber = mock::MockSubscriber::new(tx);
+
+    let _app = app.clone();
+    tokio::spawn(async move {
+        let _ = _app.handle_connection().await;
+    });
 
     app.add_subscriber(subscriber).await.unwrap();
 
@@ -134,7 +171,7 @@ async fn test_one_subscriber() {
 
 #[tokio::test]
 async fn test_many_subscriber() {
-    let (app, mut input) = get_app();
+    let (app, mut input) = get_app().await;
 
     let (tx1, mut rx1) = futures::channel::mpsc::unbounded();
     let subscriber1 = mock::MockSubscriber::new(tx1);
@@ -148,6 +185,11 @@ async fn test_many_subscriber() {
     app.add_subscriber(subscriber1).await.unwrap();
     app.add_subscriber(subscriber2).await.unwrap();
     app.add_subscriber(subscriber3).await.unwrap();
+
+    let _app = app.clone();
+    tokio::spawn(async move {
+        let _ = _app.handle_connection().await;
+    });
 
     let d1 = poll!(rx1.next());
     let d2 = poll!(rx2.next());

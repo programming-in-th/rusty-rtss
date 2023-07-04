@@ -1,11 +1,10 @@
 #![feature(result_option_inspect)]
-use std::sync::Arc;
 
 use repository::SubmisisonRepository;
-use rusty_rtss::{app::App, sse::SsePublisher};
+use rusty_rtss::{app::App, postgres::PgConnector, sse::SsePublisher};
 
 mod config;
-mod listener;
+mod connector;
 mod payload;
 mod publisher;
 mod repository;
@@ -20,13 +19,13 @@ type Payload = payload::Payload;
 
 #[derive(Clone)]
 pub struct SharedState {
-    app: Arc<App<SsePublisher<Identifier, Payload>>>,
+    app: App<PgConnector<Payload>, SsePublisher<Identifier, Payload>>,
     repository: SubmisisonRepository,
 }
 
 #[tokio::main]
 async fn main() {
-    env_logger::init();
+    env_logger::builder().format_timestamp(None).init();
 
     let config = match config::load_config() {
         Ok(x) => x,
@@ -36,12 +35,12 @@ async fn main() {
         }
     };
 
-    let pool = listener::get_pool_from_config(&config)
+    let pool = connector::get_pool_from_config(&config)
         .await
         .expect("Unable to create connection pool");
     log::info!("Connected to database");
 
-    let listener = listener::get_listener_from_pool(&pool, &config)
+    let connector = connector::get_connector_from_pool(&pool, &config)
         .await
         .expect("Unable to create listener from connection pool");
     log::info!("Listened to channel");
@@ -52,8 +51,17 @@ async fn main() {
     let publisher = publisher::get_publisher();
     log::info!("Created publisher");
 
-    let app = Arc::new(App::new(listener, publisher).expect("Unable to create app"));
+    let app = App::new(connector, publisher)
+        .await
+        .expect("Unable to create app");
     log::info!("Created app");
+
+    let _app = app.clone();
+    tokio::spawn(async move {
+        if let Err(e) = _app.handle_connection().await {
+            log::error!("Handle connection join error: {e:?}");
+        }
+    });
 
     let shared_state = SharedState { app, repository };
 

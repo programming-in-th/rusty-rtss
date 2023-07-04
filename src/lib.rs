@@ -1,3 +1,5 @@
+#![feature(result_flattening)]
+
 pub mod app;
 pub mod listener;
 pub mod postgres;
