@@ -11,11 +11,21 @@ pub async fn get_stream(
     rmq_config: RmqConfig,
 ) -> Result<BoxStream<'static, crate::Payload>, Box<dyn std::error::Error>> {
     let addr = if rmq_config.vhost == "/" {
-        format!("amqp://{}:{}", rmq_config.host, rmq_config.port)
+        format!(
+            "amqp://{username}:{password}@{host}:{port}",
+            username = rmq_config.username,
+            password = rmq_config.password,
+            host = rmq_config.host,
+            port = rmq_config.port
+        )
     } else {
         format!(
-            "amqp://{}:{}/{}",
-            rmq_config.host, rmq_config.port, rmq_config.vhost
+            "amqp://{username}:{password}@{host}:{port}/{vhost}",
+            username = rmq_config.username,
+            password = rmq_config.password,
+            host = rmq_config.host,
+            port = rmq_config.port,
+            vhost = rmq_config.vhost
         )
     };
 

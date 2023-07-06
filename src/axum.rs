@@ -1,9 +1,13 @@
 use std::sync::Arc;
 
-use axum::{response::{IntoResponse, Sse}, routing::get, extract::{State, Path}};
+use axum::{
+    extract::{Path, State},
+    response::{IntoResponse, Sse},
+    routing::get,
+};
 use futures_util::StreamExt;
 
-use crate::{cfg::AxumConfig, app::App};
+use crate::{app::App, cfg::AxumConfig};
 
 pub async fn handle_sse(State(app): State<Arc<App>>, Path(id): Path<i32>) -> impl IntoResponse {
     tracing::info!("Recv subscriber: {id}");

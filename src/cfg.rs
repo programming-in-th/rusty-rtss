@@ -4,6 +4,8 @@ use serde::Deserialize;
 #[derive(Deserialize, Clone)]
 pub struct RmqConfig {
     pub host: String,
+    pub username: String,
+    pub password: String,
     pub vhost: String,
     pub queue_env: String,
     pub port: u32,
