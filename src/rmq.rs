@@ -55,6 +55,8 @@ pub async fn get_stream(
     Ok(Box::pin(async_stream::stream! {
         while let Some(Ok(delivery)) = consumer.next().await {
             if let Ok(data) = serde_json::from_slice(&delivery.data) {
+                delivery.ack(BasicAckOptions::default()).await.unwrap();
+                tracing::debug!("Recv data: {data:?}");
                 yield data;
             } else {
                 tracing::warn!("Fail to deserialize message");
