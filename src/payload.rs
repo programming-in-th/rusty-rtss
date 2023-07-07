@@ -31,7 +31,7 @@ pub struct RunResult {
 
 impl std::fmt::Display for Payload {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("Payload {self.id}\nstatus:{self.status}\nscore:{self.score}")
+        f.write_fmt(format_args!("Payload {}\tstatus: `{}`\tscore: {}", self.id, self.status, self.score))
     }
 }
 
