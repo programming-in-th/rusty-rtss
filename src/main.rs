@@ -13,7 +13,8 @@ use payload::Payload;
 
 #[tokio::main]
 async fn main() {
-    tracing_subscriber::fmt().init();
+    let subscriber = tracing_subscriber::FmtSubscriber::builder().with_line_number(true).with_max_level(tracing::Level::DEBUG).finish();
+    tracing::subscriber::set_global_default(subscriber).expect("Unable to set trace subscriber");
 
     let Config {
         app_config,
