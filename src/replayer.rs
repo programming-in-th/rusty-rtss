@@ -41,7 +41,18 @@ impl<T> Replayer<T> {
         rx
     }
 
-    pub async fn add_data(&self, data: T) {
-        self.data.write().await.push(data);
+    pub async fn add_data(&self, data: T)
+    where
+        T: Send + Sync + Clone + 'static
+    {
+        self.data.write().await.push(data.clone());
+
+        let all_tx = self.txs.read().await.clone();
+
+        for mut tx in all_tx.into_iter() {
+            if let Err(e) = tx.send(data.clone()).await {
+                tracing::warn!("Unable to send data: {e}");
+            }
+        }
     }
 }
