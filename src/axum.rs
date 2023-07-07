@@ -5,14 +5,16 @@ use axum::{
     response::{IntoResponse, Sse},
     routing::get,
 };
-use futures_util::StreamExt;
+use futures_util::{StreamExt, TryStreamExt};
 
 use crate::{app::App, cfg::AxumConfig};
 
 pub async fn handle_sse(State(app): State<Arc<App>>, Path(id): Path<i32>) -> impl IntoResponse {
     tracing::info!("Recv subscriber: {id}");
 
-    let stream = app.get_stream(id).map(Into::into);
+    let stream = app.get_stream(id).map(Into::into).inspect_err(|e| {
+        tracing::warn!("Unable to convert into payload: {e}");
+    });
 
     Sse::new(stream)
 }
