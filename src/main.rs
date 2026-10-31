@@ -37,7 +37,7 @@ async fn main() {
         .expect("Unable to get stream");
     tracing::info!("Created stream");
 
-    tokio::spawn(async move {
+    let relay = tokio::spawn(async move {
         let app = cloned_app;
         while let Some(x) = stream.next().await {
             app.write_to_stream(x.id, x).await
@@ -48,7 +48,15 @@ async fn main() {
     let router = axum::get_router(Arc::clone(&app));
 
     tracing::info!("Starting http handler");
-    if let Err(e) = axum::serve(router, axum_config).await {
-        tracing::info!("Server closed: {e}");
+    // Exit if either side stops: a server without the relay still looks
+    // healthy, and a restart is what reconnects to RabbitMQ.
+    tokio::select! {
+        res = axum::serve(router, axum_config) => {
+            if let Err(e) = res {
+                tracing::error!("Server closed: {e}");
+            }
+        }
+        res = relay => tracing::error!("Message relay stopped: {res:?}"),
     }
+    std::process::exit(1);
 }

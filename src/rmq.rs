@@ -53,9 +53,18 @@ pub async fn get_stream(
         .await?;
 
     Ok(Box::pin(async_stream::stream! {
-        while let Some(Ok(delivery)) = consumer.next().await {
+        while let Some(delivery) = consumer.next().await {
+            let delivery = match delivery {
+                Ok(delivery) => delivery,
+                Err(e) => {
+                    tracing::error!("Consumer error: {e}");
+                    break;
+                }
+            };
             if let Ok(data) = serde_json::from_slice(&delivery.data) {
-                delivery.ack(BasicAckOptions::default()).await.unwrap();
+                if let Err(e) = delivery.ack(BasicAckOptions::default()).await {
+                    tracing::warn!("Fail to ack message: {e}");
+                }
                 tracing::debug!("Recv data: {data}");
                 yield data;
             } else {
